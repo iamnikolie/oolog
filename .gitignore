@@ -1,0 +1,11 @@
+# Build artifacts
+/oolog
+/dist/
+*.exe
+
+# Local tooling state
+.superpowers/
+.claude/settings.local.json
+
+# macOS
+.DS_Store
