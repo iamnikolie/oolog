@@ -10,6 +10,9 @@ Query an OpenObserve log store from the shell. Read stdout directly.
   (Kubernetes ClusterIP via kubectl on the node; `kubeconfig` default is k3s's). Auth: `key:` then ssh-agent; a protected key needs `ssh-add` or `$OOLOG_SSH_PASSPHRASE`. An `ssh:` error
   means key/known_hosts/host trouble, not the query.
 - `oolog streams sync` — refresh the cached stream list/schema; `streams list|show <stream>`.
+- `namespaces: [a, b]` in a profile scopes it to those namespaces: every read command adds
+  `<namespace field> IN (...)`, `--ns` outside the list and an unbalanced or commented `--where`
+  are refused, and `query` / `exec` are disabled. An error naming the list = use one of them.
 
 ## Commands
 | Command | Use |

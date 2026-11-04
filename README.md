@@ -62,6 +62,8 @@ fields:              # map the shared filter flags to your field names
   level: level                           # --level; unset = full-text match
   message: message                       # preferred field for the displayed line
 
+namespaces: [shop, blog]   # optional: scope the profile to these namespaces (see below)
+
 ssh:                 # optional, see below
   host: 203.0.113.10
   user: deploy
@@ -150,6 +152,18 @@ ssh:
 
 An error starting with `ssh:` is a key, `known_hosts` or host problem, not a
 query problem.
+
+### Scoping a profile to some namespaces
+
+On a cluster shared by several projects, `namespaces:` turns a profile into a
+view of just those namespaces — useful when an agent working on one project
+should not read the others' logs. Every read command (`tail`, `search`, `hist`,
+`top`, `around`) then starts its WHERE clause with
+`"<fields.namespace>" IN (...)`; `--ns` must name a listed namespace; `--where`
+is wrapped in parentheses and refused if it has unbalanced parentheses, `;` or a
+comment; and the raw `query` and `exec` commands are disabled, because a raw
+statement cannot be constrained. It is a guard rail in the CLI, not an access
+control: give the profile an OpenObserve user without wider rights for that.
 
 ## Use
 

@@ -39,6 +39,11 @@ type Config struct {
 	Stream string `yaml:"stream,omitempty"`
 	// Fields maps the shared filter flags onto this instance's field names.
 	Fields Fields `yaml:"fields,omitempty"`
+	// Namespaces, when set, scopes the profile: every read command only sees
+	// rows whose namespace field (fields.namespace) is one of these, --ns must
+	// name one of them, and the raw `query` / `exec` commands are refused.
+	// Use it to hand an agent a profile for one tenant of a shared cluster.
+	Namespaces []string `yaml:"namespaces,omitempty"`
 	// SSH, when set, routes every request through an in-process SSH tunnel
 	// instead of dialing URL's host directly. URL's host is then only used for
 	// the Host header.
@@ -146,10 +151,32 @@ func (c *Config) Validate() error {
 	if c.URL == "" {
 		return errors.New("config: url is required")
 	}
+	for _, ns := range c.Namespaces {
+		if strings.TrimSpace(ns) == "" {
+			return errors.New("config: namespaces must not contain empty names")
+		}
+	}
 	if c.SSH != nil {
 		return c.SSH.Validate()
 	}
 	return nil
+}
+
+// Scoped reports whether the profile is limited to a namespace allowlist.
+func (c *Config) Scoped() bool { return len(c.Namespaces) > 0 }
+
+// AllowsNamespace reports whether ns is in the allowlist (always true when the
+// profile is not scoped).
+func (c *Config) AllowsNamespace(ns string) bool {
+	if !c.Scoped() {
+		return true
+	}
+	for _, a := range c.Namespaces {
+		if a == ns {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolvePassword fills c.Password from, in order: the OOLOG_PASSWORD env var,

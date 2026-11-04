@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -9,10 +10,11 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	t.Setenv("OOLOG_HOME", t.TempDir())
 
 	in := Config{
-		URL:      "https://logs.example.com",
-		Org:      "default",
-		Email:    "agent@example.com",
-		Password: "secret",
+		URL:        "https://logs.example.com",
+		Org:        "default",
+		Email:      "agent@example.com",
+		Password:   "secret",
+		Namespaces: []string{"shop"},
 	}
 	if err := Save(in, ""); err != nil {
 		t.Fatal(err)
@@ -21,7 +23,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != in {
+	if !reflect.DeepEqual(got, in) {
 		t.Fatalf("round trip mismatch: %+v != %+v", got, in)
 	}
 }
@@ -121,7 +123,24 @@ func TestLoadParsesStreamAndFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := Load("")
-	if err != nil || got != in {
+	if err != nil || !reflect.DeepEqual(got, in) {
 		t.Fatalf("got %+v err %v", got, err)
+	}
+}
+
+func TestNamespacesValidateAndAllow(t *testing.T) {
+	c := Config{URL: "http://x", Namespaces: []string{"a", " "}}
+	if err := c.Validate(); err == nil {
+		t.Fatal("empty namespace accepted")
+	}
+	c.Namespaces = []string{"a"}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Scoped() || !c.AllowsNamespace("a") || c.AllowsNamespace("b") {
+		t.Fatal("allowlist not enforced")
+	}
+	if (&Config{}).AllowsNamespace("b") != true {
+		t.Fatal("unscoped profile must allow every namespace")
 	}
 }

@@ -66,6 +66,68 @@ func Conds(m Mapping, ns, pod, container, level, grep, match, where string) ([]s
 	return c, nil
 }
 
+// In builds `"field" IN ('a', 'b')` — the condition a scoped profile puts in
+// front of every query.
+func In(field string, values []string) string {
+	lits := make([]string, len(values))
+	for i, v := range values {
+		lits[i] = quoteLit(v)
+	}
+	return Quote(field) + " IN (" + strings.Join(lits, ", ") + ")"
+}
+
+// CheckFragment rejects a raw WHERE fragment that could reach outside the
+// parentheses it is wrapped in: unbalanced parentheses, a statement separator
+// or a comment opener outside string literals and quoted identifiers. A
+// fragment that passes, wrapped as "(<fragment>)" and AND-ed with other
+// conditions, can only narrow the result.
+func CheckFragment(where string) error {
+	depth := 0
+	var quote rune // 0, '\'' or '"'
+	rs := []rune(where)
+	for i := 0; i < len(rs); i++ {
+		r := rs[i]
+		if quote != 0 {
+			if r == quote {
+				if i+1 < len(rs) && rs[i+1] == quote { // doubled quote = escaped
+					i++
+					continue
+				}
+				quote = 0
+			}
+			continue
+		}
+		switch r {
+		case '\'', '"':
+			quote = r
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth < 0 {
+				return fmt.Errorf("--where: unbalanced ')'")
+			}
+		case ';':
+			return fmt.Errorf("--where: ';' is not allowed")
+		case '-':
+			if i+1 < len(rs) && rs[i+1] == '-' {
+				return fmt.Errorf("--where: comments are not allowed")
+			}
+		case '/':
+			if i+1 < len(rs) && rs[i+1] == '*' {
+				return fmt.Errorf("--where: comments are not allowed")
+			}
+		}
+	}
+	if quote != 0 {
+		return fmt.Errorf("--where: unterminated quote")
+	}
+	if depth != 0 {
+		return fmt.Errorf("--where: unbalanced '('")
+	}
+	return nil
+}
+
 func whereClause(conds []string) string {
 	if len(conds) == 0 {
 		return ""

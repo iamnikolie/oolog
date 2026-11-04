@@ -16,6 +16,9 @@ var queryCmd = &cobra.Command{
 	Short: "Run a raw OpenObserve SQL query",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := refuseScoped("query"); err != nil {
+			return err
+		}
 		return runSQL(cmd, args[0], qSince, qFrom, qTo, qLimit, time.Hour)
 	},
 }

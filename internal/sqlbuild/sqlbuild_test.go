@@ -83,3 +83,39 @@ func TestSearchAsc(t *testing.T) {
 		t.Fatalf("SearchAsc = %q\nwant %q", got, want)
 	}
 }
+
+func TestIn(t *testing.T) {
+	got := In("ns", []string{"a", "b'c"})
+	if want := `"ns" IN ('a', 'b''c')`; got != want {
+		t.Fatalf("In = %s, want %s", got, want)
+	}
+}
+
+func TestCheckFragment(t *testing.T) {
+	ok := []string{
+		"stream = 'stderr'",
+		"(a = 1 OR b = 2) AND c = 3",
+		"msg = 'x) OR (1=1'",
+		`"odd""name" = 'it''s; -- fine'`,
+		"x = 1 - 2",
+	}
+	for _, w := range ok {
+		if err := CheckFragment(w); err != nil {
+			t.Errorf("CheckFragment(%q) = %v, want nil", w, err)
+		}
+	}
+	bad := []string{
+		"1=1) OR (1=1",
+		"a = 1)",
+		"(a = 1",
+		"a = 1; DROP",
+		"a = 1 -- rest",
+		"a = 1 /* rest",
+		"a = 'open",
+	}
+	for _, w := range bad {
+		if err := CheckFragment(w); err == nil {
+			t.Errorf("CheckFragment(%q) = nil, want error", w)
+		}
+	}
+}

@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/iamnikolie/oolog/internal/config"
 	"github.com/iamnikolie/oolog/internal/sqlbuild"
 	"github.com/spf13/cobra"
 )
@@ -51,5 +53,38 @@ func (f *filterFlags) conds(stream string) ([]string, error) {
 		}
 	}
 	m := sqlbuild.Mapping{Namespace: fm.Namespace, Pod: fm.Pod, Container: fm.Container, Level: fm.Level}
-	return sqlbuild.Conds(m, f.ns, f.pod, f.container, f.level, f.grep, f.match, f.where)
+	if !cfg.Scoped() {
+		return sqlbuild.Conds(m, f.ns, f.pod, f.container, f.level, f.grep, f.match, f.where)
+	}
+	return scopedConds(cfg, m, f)
+}
+
+// scopedConds is conds for a profile with a namespace allowlist: the IN
+// condition comes first, --ns must be on the list, and --where is checked and
+// parenthesised so it cannot widen the result.
+func scopedConds(c config.Config, m sqlbuild.Mapping, f *filterFlags) ([]string, error) {
+	if f.ns != "" && !c.AllowsNamespace(f.ns) {
+		return nil, fmt.Errorf("--ns %q: this profile is limited to namespaces %s", f.ns, strings.Join(c.Namespaces, ", "))
+	}
+	where := f.where
+	if where != "" {
+		if err := sqlbuild.CheckFragment(where); err != nil {
+			return nil, err
+		}
+		where = "(" + where + ")"
+	}
+	rest, err := sqlbuild.Conds(m, f.ns, f.pod, f.container, f.level, f.grep, f.match, where)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string{sqlbuild.In(m.Namespace, c.Namespaces)}, rest...), nil
+}
+
+// refuseScoped is the guard of the raw commands, which a scoped profile cannot
+// constrain.
+func refuseScoped(name string) error {
+	if cfg.Scoped() {
+		return fmt.Errorf("%s: disabled — this profile is limited to namespaces %s; use tail/search/hist/top/around", name, strings.Join(cfg.Namespaces, ", "))
+	}
+	return nil
 }
